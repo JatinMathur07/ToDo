@@ -16,6 +16,12 @@
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="favicon-192.png">
+    <link rel="apple-touch-icon" href="favicon-180.png">
+    <meta name="theme-color" content="#4f46e5">
+    
     <style>
         * {
             font-family: 'Lato', sans-serif;
@@ -141,6 +147,35 @@
             background: linear-gradient(to bottom right, #dcfce7, #f3f4f6);
             border: 1px solid #bbf7d0;
         }
+        
+        .notification-badge {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .notification-badge.enabled::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        
+        .notification-badge.disabled::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
     </style>
 </head>
 <body>
@@ -154,9 +189,12 @@
                     </div>
                     <div>
                         <h1 class="text-2xl font-bold text-slate-900">TaskMaster</h1>
-                        <p class="text-sm text-slate-500">Developed and Maintain by Jatin Mathur</p>
+                        <p class="text-sm text-slate-500">Developed and Maintain By Jatin Mathur</p>
                     </div>
                 </div>
+                <button id="notificationBtn" onclick="requestNotificationPermission()" class="notification-badge disabled px-3 py-2 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors" title="Enable notifications">
+                    <i class="fas fa-bell text-slate-600"></i>
+                </button>
             </div>
         </div>
     </header>
