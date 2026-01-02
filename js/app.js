@@ -1,5 +1,6 @@
 // To-Do List Application
 // Professional Elegance Design with Complete CRUD Functionality
+// Enhanced Notification Support for Mobile Apps
 
 let todos = [];
 let currentFilter = 'all';
@@ -11,10 +12,15 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTodos();
     updateStats();
     
-    // Request notification permission
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
+    // Register service worker for better notification support
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+            console.log('Service Worker registration failed:', err);
+        });
     }
+    
+    // Check notification permission status
+    checkNotificationPermission();
     
     // Initialize daily notification scheduler
     initializeDailyNotification();
@@ -249,6 +255,57 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Check Notification Permission Status
+function checkNotificationPermission() {
+    if (!('Notification' in window)) {
+        console.log('Notifications not supported');
+        return;
+    }
+    
+    const btn = document.getElementById('notificationBtn');
+    if (Notification.permission === 'granted') {
+        btn.classList.remove('disabled');
+        btn.classList.add('enabled');
+        btn.title = 'Notifications enabled';
+    } else {
+        btn.classList.remove('enabled');
+        btn.classList.add('disabled');
+        btn.title = 'Click to enable notifications';
+    }
+}
+
+// Request Notification Permission
+function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        alert('Notifications are not supported in this browser');
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        showNotification('Notifications already enabled!', 'success');
+        return;
+    }
+    
+    if (Notification.permission === 'denied') {
+        alert('Notifications are blocked. Please enable them in your browser settings.');
+        return;
+    }
+    
+    // Request permission
+    Notification.requestPermission().then(permission => {
+        if (permission === 'granted') {
+            checkNotificationPermission();
+            showNotification('Notifications enabled! You will get reminders at 11 AM', 'success');
+            console.log('Notification permission granted');
+        } else {
+            showNotification('Notification permission denied', 'error');
+            console.log('Notification permission denied');
+        }
+    }).catch(err => {
+        console.error('Error requesting notification permission:', err);
+    });
+}
+
 // Daily Notification Scheduler
 function initializeDailyNotification() {
     // Check if notifications are supported
@@ -280,6 +337,12 @@ function checkAndSendNotification() {
 
 // Send daily notification with today's tasks
 function sendDailyNotification() {
+    // Check if notifications are enabled
+    if (Notification.permission !== 'granted') {
+        console.log('Notification permission not granted');
+        return;
+    }
+    
     // Check if already sent today
     const lastNotificationDate = localStorage.getItem('lastNotificationDate');
     const today = new Date().toDateString();
@@ -303,13 +366,14 @@ function sendDailyNotification() {
     const notificationBody = `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`;
     
     // Send notification
-    if (Notification.permission === 'granted') {
+    try {
         new Notification('TaskMaster - Daily Reminder at 11 AM', {
             body: notificationBody,
             icon: 'favicon-192.png',
             badge: 'favicon-32.png',
             tag: 'daily-reminder',
-            requireInteraction: false
+            requireInteraction: true,
+            vibrate: [200, 100, 200]
         });
         
         // Mark that notification was sent today
@@ -317,6 +381,8 @@ function sendDailyNotification() {
         
         // Log notification
         console.log('Daily notification sent at 11 AM with ' + taskCount + ' active tasks');
+    } catch (err) {
+        console.error('Error sending notification:', err);
     }
 }
 
@@ -338,19 +404,16 @@ document.head.appendChild(style);
 
 // Manual notification test function (for testing)
 window.testNotification = function() {
-    if (Notification.permission !== 'granted') {
-        alert('Please enable notifications first. Browser will ask for permission.');
-        Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-                sendTestNotification();
-            }
-        });
-    } else {
-        sendTestNotification();
+    if (!('Notification' in window)) {
+        alert('Notifications not supported');
+        return;
     }
-};
-
-function sendTestNotification() {
+    
+    if (Notification.permission !== 'granted') {
+        alert('Please enable notifications first by clicking the bell icon');
+        return;
+    }
+    
     const todayTasks = todos.filter(t => !t.completed);
     if (todayTasks.length === 0) {
         alert('No active tasks to show in notification. Add some tasks first!');
@@ -361,15 +424,19 @@ function sendTestNotification() {
     const taskList = todayTasks.slice(0, 3).map(t => `• ${t.title}`).join('\n');
     const moreText = taskCount > 3 ? `\n... and ${taskCount - 3} more task(s)` : '';
     
-    new Notification('TaskMaster - Test Notification', {
-        body: `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`,
-        icon: 'favicon-192.png',
-        badge: 'favicon-32.png',
-        tag: 'test-reminder'
-    });
-    
-    console.log('Test notification sent');
-}
+    try {
+        new Notification('TaskMaster - Test Notification', {
+            body: `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`,
+            icon: 'favicon-192.png',
+            badge: 'favicon-32.png',
+            tag: 'test-reminder',
+            vibrate: [200, 100, 200]
+        });
+        console.log('Test notification sent');
+    } catch (err) {
+        console.error('Error sending test notification:', err);
+    }
+};
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
