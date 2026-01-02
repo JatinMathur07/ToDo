@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTodos();
     renderTodos();
     updateStats();
+    
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+    
+    // Initialize daily notification scheduler
+    initializeDailyNotification();
 });
 
 // Load todos from localStorage
@@ -241,6 +249,77 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Daily Notification Scheduler
+function initializeDailyNotification() {
+    // Check if notifications are supported
+    if (!('Notification' in window)) {
+        console.log('Notifications not supported in this browser');
+        return;
+    }
+    
+    // Schedule notification check every minute
+    setInterval(checkAndSendNotification, 60000);
+    
+    // Also check immediately on load
+    checkAndSendNotification();
+    
+    console.log('Daily notification scheduler initialized');
+}
+
+// Check if it's 11 AM and send notification
+function checkAndSendNotification() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    
+    // Check if current time is 11:00 AM (between 11:00 and 11:01)
+    if (hours === 11 && minutes === 0) {
+        sendDailyNotification();
+    }
+}
+
+// Send daily notification with today's tasks
+function sendDailyNotification() {
+    // Check if already sent today
+    const lastNotificationDate = localStorage.getItem('lastNotificationDate');
+    const today = new Date().toDateString();
+    
+    if (lastNotificationDate === today) {
+        return; // Already sent notification today
+    }
+    
+    // Get today's active tasks
+    const todayTasks = todos.filter(t => !t.completed);
+    
+    if (todayTasks.length === 0) {
+        return; // No tasks to remind about
+    }
+    
+    // Create notification message
+    const taskCount = todayTasks.length;
+    const taskList = todayTasks.slice(0, 3).map(t => `• ${t.title}`).join('\n');
+    const moreText = taskCount > 3 ? `\n... and ${taskCount - 3} more task(s)` : '';
+    
+    const notificationBody = `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`;
+    
+    // Send notification
+    if (Notification.permission === 'granted') {
+        new Notification('TaskMaster - Daily Reminder at 11 AM', {
+            body: notificationBody,
+            icon: 'favicon-192.png',
+            badge: 'favicon-32.png',
+            tag: 'daily-reminder',
+            requireInteraction: false
+        });
+        
+        // Mark that notification was sent today
+        localStorage.setItem('lastNotificationDate', today);
+        
+        // Log notification
+        console.log('Daily notification sent at 11 AM with ' + taskCount + ' active tasks');
+    }
+}
+
 // Add slideOut animation
 const style = document.createElement('style');
 style.textContent = `
@@ -256,6 +335,41 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+// Manual notification test function (for testing)
+window.testNotification = function() {
+    if (Notification.permission !== 'granted') {
+        alert('Please enable notifications first. Browser will ask for permission.');
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                sendTestNotification();
+            }
+        });
+    } else {
+        sendTestNotification();
+    }
+};
+
+function sendTestNotification() {
+    const todayTasks = todos.filter(t => !t.completed);
+    if (todayTasks.length === 0) {
+        alert('No active tasks to show in notification. Add some tasks first!');
+        return;
+    }
+    
+    const taskCount = todayTasks.length;
+    const taskList = todayTasks.slice(0, 3).map(t => `• ${t.title}`).join('\n');
+    const moreText = taskCount > 3 ? `\n... and ${taskCount - 3} more task(s)` : '';
+    
+    new Notification('TaskMaster - Test Notification', {
+        body: `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`,
+        icon: 'favicon-192.png',
+        badge: 'favicon-32.png',
+        tag: 'test-reminder'
+    });
+    
+    console.log('Test notification sent');
+}
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
