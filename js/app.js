@@ -1,10 +1,11 @@
 // To-Do List Application
 // Professional Elegance Design with Complete CRUD Functionality
-// Enhanced Notification Support for Mobile Apps
+// Local Notification System for WebInto App Compatibility
 
 let todos = [];
 let currentFilter = 'all';
 let editingId = null;
+let notificationsEnabled = false;
 
 // Initialize the app
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,15 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTodos();
     updateStats();
     
-    // Register service worker for better notification support
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => {
-            console.log('Service Worker registration failed:', err);
-        });
-    }
-    
-    // Check notification permission status
-    checkNotificationPermission();
+    // Load notification preference
+    notificationsEnabled = localStorage.getItem('notificationsEnabled') === 'true';
+    updateNotificationButton();
     
     // Initialize daily notification scheduler
     initializeDailyNotification();
@@ -236,7 +231,7 @@ function updateStats() {
     document.getElementById('completedCount').textContent = completed;
 }
 
-// Show Notification
+// Show In-App Notification (Toast)
 function showNotification(message, type = 'success') {
     // Create notification element
     const notification = document.createElement('div');
@@ -255,65 +250,35 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
-// Check Notification Permission Status
-function checkNotificationPermission() {
-    if (!('Notification' in window)) {
-        console.log('Notifications not supported');
-        return;
-    }
+// Toggle Notifications
+function toggleNotifications() {
+    notificationsEnabled = !notificationsEnabled;
+    localStorage.setItem('notificationsEnabled', notificationsEnabled);
+    updateNotificationButton();
     
-    const btn = document.getElementById('notificationBtn');
-    if (Notification.permission === 'granted') {
-        btn.classList.remove('disabled');
-        btn.classList.add('enabled');
-        btn.title = 'Notifications enabled';
+    if (notificationsEnabled) {
+        showNotification('Daily reminders enabled! You will get alerts at 11 AM', 'success');
     } else {
-        btn.classList.remove('enabled');
-        btn.classList.add('disabled');
-        btn.title = 'Click to enable notifications';
+        showNotification('Daily reminders disabled', 'success');
     }
 }
 
-// Request Notification Permission
-function requestNotificationPermission() {
-    if (!('Notification' in window)) {
-        alert('Notifications are not supported in this browser');
-        return;
+// Update Notification Button
+function updateNotificationButton() {
+    const btn = document.getElementById('notificationBtn');
+    if (notificationsEnabled) {
+        btn.classList.remove('disabled');
+        btn.classList.add('enabled');
+        btn.title = 'Daily reminders enabled - Click to disable';
+    } else {
+        btn.classList.remove('enabled');
+        btn.classList.add('disabled');
+        btn.title = 'Click to enable daily reminders at 11 AM';
     }
-    
-    if (Notification.permission === 'granted') {
-        showNotification('Notifications already enabled!', 'success');
-        return;
-    }
-    
-    if (Notification.permission === 'denied') {
-        alert('Notifications are blocked. Please enable them in your browser settings.');
-        return;
-    }
-    
-    // Request permission
-    Notification.requestPermission().then(permission => {
-        if (permission === 'granted') {
-            checkNotificationPermission();
-            showNotification('Notifications enabled! You will get reminders at 11 AM', 'success');
-            console.log('Notification permission granted');
-        } else {
-            showNotification('Notification permission denied', 'error');
-            console.log('Notification permission denied');
-        }
-    }).catch(err => {
-        console.error('Error requesting notification permission:', err);
-    });
 }
 
 // Daily Notification Scheduler
 function initializeDailyNotification() {
-    // Check if notifications are supported
-    if (!('Notification' in window)) {
-        console.log('Notifications not supported in this browser');
-        return;
-    }
-    
     // Schedule notification check every minute
     setInterval(checkAndSendNotification, 60000);
     
@@ -325,6 +290,10 @@ function initializeDailyNotification() {
 
 // Check if it's 11 AM and send notification
 function checkAndSendNotification() {
+    if (!notificationsEnabled) {
+        return;
+    }
+    
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
@@ -337,12 +306,6 @@ function checkAndSendNotification() {
 
 // Send daily notification with today's tasks
 function sendDailyNotification() {
-    // Check if notifications are enabled
-    if (Notification.permission !== 'granted') {
-        console.log('Notification permission not granted');
-        return;
-    }
-    
     // Check if already sent today
     const lastNotificationDate = localStorage.getItem('lastNotificationDate');
     const today = new Date().toDateString();
@@ -360,33 +323,93 @@ function sendDailyNotification() {
     
     // Create notification message
     const taskCount = todayTasks.length;
-    const taskList = todayTasks.slice(0, 3).map(t => `• ${t.title}`).join('\n');
-    const moreText = taskCount > 3 ? `\n... and ${taskCount - 3} more task(s)` : '';
+    const taskList = todayTasks.slice(0, 5).map(t => `• ${t.title}`).join('\n');
+    const moreText = taskCount > 5 ? `\n... and ${taskCount - 5} more task(s)` : '';
     
-    const notificationBody = `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`;
+    // Show local notification modal
+    showLocalNotification(
+        'TaskMaster - Daily Reminder at 11 AM',
+        `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`
+    );
     
-    // Send notification
-    try {
-        new Notification('TaskMaster - Daily Reminder at 11 AM', {
-            body: notificationBody,
-            icon: 'favicon-192.png',
-            badge: 'favicon-32.png',
-            tag: 'daily-reminder',
-            requireInteraction: true,
-            vibrate: [200, 100, 200]
-        });
-        
-        // Mark that notification was sent today
-        localStorage.setItem('lastNotificationDate', today);
-        
-        // Log notification
-        console.log('Daily notification sent at 11 AM with ' + taskCount + ' active tasks');
-    } catch (err) {
-        console.error('Error sending notification:', err);
+    // Mark that notification was sent today
+    localStorage.setItem('lastNotificationDate', today);
+    
+    // Log notification
+    console.log('Daily notification sent at 11 AM with ' + taskCount + ' active tasks');
+}
+
+// Show Local Notification Modal
+function showLocalNotification(title, message) {
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4';
+    overlay.style.animation = 'fadeIn 0.3s ease';
+    
+    // Create notification modal
+    const modal = document.createElement('div');
+    modal.className = 'bg-white rounded-lg shadow-2xl max-w-md w-full p-6 animate-pulse';
+    modal.style.animation = 'slideUp 0.3s ease';
+    
+    // Create content
+    const titleEl = document.createElement('h2');
+    titleEl.className = 'text-xl font-bold text-slate-900 mb-3';
+    titleEl.textContent = title;
+    
+    const messageEl = document.createElement('p');
+    messageEl.className = 'text-slate-600 mb-6 whitespace-pre-wrap';
+    messageEl.textContent = message;
+    
+    // Create buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'flex gap-3';
+    
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'flex-1 px-4 py-2 bg-slate-200 text-slate-900 rounded-md font-medium hover:bg-slate-300 transition-colors';
+    dismissBtn.textContent = 'Dismiss';
+    dismissBtn.onclick = () => {
+        overlay.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => overlay.remove(), 300);
+    };
+    
+    const openBtn = document.createElement('button');
+    openBtn.className = 'flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md font-medium hover:bg-indigo-700 transition-colors';
+    openBtn.textContent = 'View Tasks';
+    openBtn.onclick = () => {
+        filterTasks('active');
+        overlay.style.animation = 'fadeOut 0.3s ease';
+        setTimeout(() => overlay.remove(), 300);
+    };
+    
+    buttonContainer.appendChild(dismissBtn);
+    buttonContainer.appendChild(openBtn);
+    
+    // Assemble modal
+    modal.appendChild(titleEl);
+    modal.appendChild(messageEl);
+    modal.appendChild(buttonContainer);
+    
+    // Add to overlay
+    overlay.appendChild(modal);
+    
+    // Add to page
+    document.body.appendChild(overlay);
+    
+    // Auto dismiss after 10 seconds
+    setTimeout(() => {
+        if (overlay.parentElement) {
+            overlay.style.animation = 'fadeOut 0.3s ease';
+            setTimeout(() => overlay.remove(), 300);
+        }
+    }, 10000);
+    
+    // Vibrate if available
+    if (navigator.vibrate) {
+        navigator.vibrate([200, 100, 200, 100, 200]);
     }
 }
 
-// Add slideOut animation
+// Add animations
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideOut {
@@ -399,21 +422,40 @@ style.textContent = `
             transform: translateX(100%);
         }
     }
+    
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
+        }
+    }
 `;
 document.head.appendChild(style);
 
 // Manual notification test function (for testing)
 window.testNotification = function() {
-    if (!('Notification' in window)) {
-        alert('Notifications not supported');
-        return;
-    }
-    
-    if (Notification.permission !== 'granted') {
-        alert('Please enable notifications first by clicking the bell icon');
-        return;
-    }
-    
     const todayTasks = todos.filter(t => !t.completed);
     if (todayTasks.length === 0) {
         alert('No active tasks to show in notification. Add some tasks first!');
@@ -421,21 +463,15 @@ window.testNotification = function() {
     }
     
     const taskCount = todayTasks.length;
-    const taskList = todayTasks.slice(0, 3).map(t => `• ${t.title}`).join('\n');
-    const moreText = taskCount > 3 ? `\n... and ${taskCount - 3} more task(s)` : '';
+    const taskList = todayTasks.slice(0, 5).map(t => `• ${t.title}`).join('\n');
+    const moreText = taskCount > 5 ? `\n... and ${taskCount - 5} more task(s)` : '';
     
-    try {
-        new Notification('TaskMaster - Test Notification', {
-            body: `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`,
-            icon: 'favicon-192.png',
-            badge: 'favicon-32.png',
-            tag: 'test-reminder',
-            vibrate: [200, 100, 200]
-        });
-        console.log('Test notification sent');
-    } catch (err) {
-        console.error('Error sending test notification:', err);
-    }
+    showLocalNotification(
+        'TaskMaster - Test Notification',
+        `You have ${taskCount} active task(s) today:\n\n${taskList}${moreText}`
+    );
+    
+    console.log('Test notification shown');
 };
 
 // Keyboard shortcuts
